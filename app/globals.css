@@ -1,0 +1,16 @@
+/* app/globals.css */
+@import "tailwindcss";
+
+/* Nếu bạn muốn thêm các biến màu tùy chỉnh (giống mẫu tài chính), hãy viết như sau: */
+@theme {
+  --color-finance-dark: #020617;
+  --color-finance-card: #0f172a;
+  --color-finance-border: #1e293b;
+  --color-finance-yellow: #eab308;
+}
+
+/* Các thuộc tính mặc định cho body */
+:root {
+  background-color: #020617;
+  color: #f8fafc;
+}
