@@ -4,7 +4,7 @@ const DataPointSchema = new mongoose.Schema(
   {
     itemCode: Number,
     fiscalDate: String,
-    numericValue: mongoose.Schema.Types.Mixed, //Mixed vì có Number hoặc String '-'
+    numericValue: mongoose.Schema.Types.Mixed,
   },
   { _id: false }
 );
@@ -19,15 +19,17 @@ const ItemSchema = new mongoose.Schema(
   { _id: false }
 );
 
-const FinanceStatementSchema = new mongoose.Schema(
+const IncomeStatementSchema = new mongoose.Schema(
   {
     code: String,
     name: String,
-    sectorName: String,
-    type: Number,
+    type: Number, // 90 = Income Statement
     period: Number,
     year: Number,
-    items: [ItemSchema], // Sử dụng ItemSchema
+    periodNum: Number,
+    label: [String],
+    rawItems: [ItemSchema],
+    tree: [ItemSchema],
     createdAt: {
       type: Date,
       default: Date.now,
@@ -36,7 +38,10 @@ const FinanceStatementSchema = new mongoose.Schema(
   { strict: false }
 );
 
-FinanceStatementSchema.index({ code: 1, year: 1 }, { unique: true });
+IncomeStatementSchema.index(
+  { code: 1, type: 1, year: 1, periodNum: 1 },
+  { unique: true }
+);
 
-export default mongoose.models.FinanceStatement ||
-  mongoose.model('FinanceStatement', FinanceStatementSchema);
+export default mongoose.models.IncomeStatement ||
+  mongoose.model('IncomeStatement', IncomeStatementSchema);

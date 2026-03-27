@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { CrawlFinanceResult } from '@/types/finance';
-import { getFinanceFromAPI, getStatisticsFromAPI } from './finance.service';
+import {
+  getFinanceFromAPI,
+  getIncomeStatementFromAPI,
+  getStatisticsFromAPI,
+} from './finance.service';
 
 export async function crawlFinance(code: string): Promise<CrawlFinanceResult> {
   const data = await getFinanceFromAPI(code);
@@ -12,23 +16,42 @@ export async function crawlFinance(code: string): Promise<CrawlFinanceResult> {
   };
 }
 
+export async function crawlIncomeStatement(code: string) {
+  const data = await getIncomeStatementFromAPI(code);
+
+  return {
+    code: data.code,
+    name: data.name,
+    type: data.type,
+    period: data.period,
+    year: data.year,
+    periodNum: data.periodNum,
+    label: data.label || [],
+    rawItems: data.data || [],
+    tree: data.tree || [],
+  };
+}
+
 export async function crawlStatistics(code: string) {
   const apiData = await getStatisticsFromAPI(code);
 
   // apiData.data là array of groups, mỗi group có { data: [...], label: [...] }
-  const mappedData = apiData.data?.map((group: any) => ({
-    data: group.data?.map((item: any) => ({
-      itemCode: item.itemCode,
-      itemName: item.itemName,
-      displayLevel: item.displayLevel,
-      data: item.data?.map((dp: any) => ({
-        year: dp.year,
-        value: dp.value1 ? Number(dp.value1) : null,
-        value2: dp.value2 ? Number(dp.value2) : null,
-      })) || [],
-    })) || [],
-    label: group.label || [],
-  })) || [];
+  const mappedData =
+    apiData.data?.map((group: any) => ({
+      data:
+        group.data?.map((item: any) => ({
+          itemCode: item.itemCode,
+          itemName: item.itemName,
+          displayLevel: item.displayLevel,
+          data:
+            item.data?.map((dp: any) => ({
+              year: dp.year,
+              value: dp.value1 ? Number(dp.value1) : null,
+              value2: dp.value2 ? Number(dp.value2) : null,
+            })) || [],
+        })) || [],
+      label: group.label || [],
+    })) || [];
 
   return {
     code: apiData.code,

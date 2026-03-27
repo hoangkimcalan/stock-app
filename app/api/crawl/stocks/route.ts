@@ -1,29 +1,25 @@
 import { connectDB } from '@/lib/mongodb';
 import FinanceStatement from '@/models/FinanceStatement';
+import IncomeStatement from '@/models/IncomeStatement';
 import Statistics from '@/models/Statistics';
-import { crawlFinance, crawlStatistics } from '@/services/finance.crawler';
+import {
+  crawlFinance,
+  crawlIncomeStatement,
+  crawlStatistics,
+} from '@/services/finance.crawler';
 
 const STOCKS = [
-  'VIC',
-  'VHM',
-  'VNM',
-  'HPG',
-  'MSN',
-  'VJC',
-  'NVL',
-  'KDH',
-  'DXG',
-  'PDR',
-  'BCM',
-  'HSG',
-  'NKG',
-  'GAS',
-  'PLX',
-  'MWG',
-  'FPT',
-  'SAB',
-  'DGW',
-  'GMD',
+  'FIR',
+  'TAL',
+  'TIX',
+  'VRC',
+  'QNP',
+  'BCE',
+  'CCC',
+  'RYG',
+  'TCD',
+  'TSA',
+
 ];
 
 export async function GET() {
@@ -56,6 +52,19 @@ export async function GET() {
         { upsert: true, new: true }
       );
 
+      // Crawl Income Statement
+      const incomeData = await crawlIncomeStatement(code);
+
+      await IncomeStatement.findOneAndUpdate(
+        {
+          code: incomeData.code,
+          year: incomeData.year,
+          periodNum: incomeData.periodNum,
+        },
+        incomeData,
+        { upsert: true, new: true }
+      );
+
       // Crawl Statistics
       const statisticsData = await crawlStatistics(code);
 
@@ -69,6 +78,7 @@ export async function GET() {
         code,
         status: 'ok',
         finance: 'saved',
+        income: 'saved',
         statistics: 'saved',
       });
     } catch (err) {

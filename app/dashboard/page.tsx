@@ -3,19 +3,29 @@
 'use client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
+import { FinancialReport } from './components/FinancialReport';
 import { GeneralStatistics } from './components/GeneralStatistics';
 
 function DashboardContent() {
   const [data, setData] = useState<any>(null);
+  const [incomeData, setIncomeData] = useState<any>(null);
   const [statisticsData, setStatisticsData] = useState<any>(null);
   const [tree, setTree] = useState<any[]>([]);
+  const [incomeTree, setIncomeTree] = useState<any[]>([]);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const [incomeExpanded, setIncomeExpanded] = useState<Record<number, boolean>>(
+    {}
+  );
   const [headers, setHeaders] = useState<string[]>([]);
+  const [incomeHeaders, setIncomeHeaders] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState('');
   const [activeTab, setActiveTab] = useState<'data' | 'chart'>('data');
   const [dataSubTab, setDataSubTab] = useState<'report' | 'statistics'>(
-    'report'
+    'statistics'
+  );
+  const [reportSubTab, setReportSubTab] = useState<'balance' | 'income'>(
+    'balance'
   );
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -34,6 +44,7 @@ function DashboardContent() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Fetch Balance Sheet
   useEffect(() => {
     setLoading(true);
     fetch(`/api/stocks/${stockCode}`, {
@@ -58,10 +69,51 @@ function DashboardContent() {
         }
         setExpanded({});
       })
-      .catch((err) => console.error('Error fetching stock data:', err))
+      .catch((err) => console.error('Error fetching balance sheet:', err))
       .finally(() => setLoading(false));
   }, [stockCode]);
 
+  // Fetch Income Statement
+  useEffect(() => {
+    if (
+      activeTab === 'data' &&
+      dataSubTab === 'report' &&
+      reportSubTab === 'income'
+    ) {
+      fetch(`/api/stocks/${stockCode}/finance`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+      })
+        .then((res) => res.json())
+        .then((resData) => {
+          setIncomeData(resData || []);
+          // Lấy tree từ rawItems nếu có, nếu không lấy rawItems
+          const treeData =
+            resData.tree && resData.tree.length > 0
+              ? resData.tree
+              : resData.rawItems || [];
+          setIncomeTree(treeData);
+
+          const items = resData.rawItems || [];
+          if (items.length > 0) {
+            const longestDataRow = items.reduce((prev: any, current: any) =>
+              prev.data?.length > current.data?.length ? prev : current
+            );
+            if (longestDataRow && longestDataRow.data) {
+              setIncomeHeaders(
+                longestDataRow.data.map((d: any) => d.fiscalDate)
+              );
+            }
+          }
+          setIncomeExpanded({});
+        })
+        .catch((err) => console.error('Error fetching income statement:', err));
+    }
+  }, [stockCode, activeTab, dataSubTab, reportSubTab]);
+
+  // Fetch Statistics
   useEffect(() => {
     if (activeTab === 'data' && dataSubTab === 'statistics') {
       fetch(`/api/stocks/${stockCode}/statistics`, {
@@ -84,65 +136,6 @@ function DashboardContent() {
     if (code) {
       router.push(`/dashboard?code=${code}`);
     }
-  };
-
-  const renderRow = (node: any): React.ReactNode => {
-    const hasChild = node.children && node.children.length > 0;
-    const isExpanded = expanded[node.itemCode];
-    const level = node.displayLevel || 1;
-
-    return (
-      <React.Fragment key={node.itemCode}>
-        <tr
-          className={`border-b border-slate-800 hover:bg-white/5 ${
-            level === 1 ? 'bg-slate-900 font-bold' : ''
-          }`}
-        >
-          <td
-            className="py-3 px-4 sticky left-0 bg-[#0f172a] z-10 border-r border-slate-800 whitespace-nowrap"
-            style={{ paddingLeft: (level - 1) * 24 + 16 }}
-          >
-            <div className="flex items-center text-[13px]">
-              {hasChild && (
-                <button
-                  onClick={() =>
-                    setExpanded((p) => ({ ...p, [node.itemCode]: !isExpanded }))
-                  }
-                  className="mr-2 w-4 text-yellow-500 font-bold"
-                >
-                  {isExpanded ? '−' : '+'}
-                </button>
-              )}
-              {!hasChild && (
-                <span className="mr-2 w-4 text-slate-700 opacity-40">•</span>
-              )}
-              <span className={level === 1 ? 'uppercase' : ''}>
-                {node.itemName}
-              </span>
-            </div>
-          </td>
-
-          {headers.map((date) => {
-            const cell = node.data?.find((d: any) => d.fiscalDate === date);
-            return (
-              <td
-                key={date}
-                className="text-right px-4 font-mono text-slate-300 text-[13px]"
-              >
-                {cell?.numericValue
-                  ? new Intl.NumberFormat('vi-VN').format(
-                      Math.round(cell.numericValue / 1e9)
-                    )
-                  : '-'}
-              </td>
-            );
-          })}
-        </tr>
-        {hasChild &&
-          isExpanded &&
-          node.children.map((child: any) => renderRow(child))}
-      </React.Fragment>
-    );
   };
 
   if (loading) {
@@ -206,7 +199,7 @@ function DashboardContent() {
               </button>
             </div>
 
-            {/* SUB TABS (chỉ hiện khi ở tab "Dữ liệu tài chính") */}
+            {/* SUB TABS */}
             {activeTab === 'data' && (
               <div className="flex gap-2">
                 <button
@@ -231,31 +224,56 @@ function DashboardContent() {
                 </button>
               </div>
             )}
+
+            {/* REPORT SUB TABS */}
+            {activeTab === 'data' && dataSubTab === 'report' && (
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={() => setReportSubTab('balance')}
+                  className={`px-4 py-2 text-sm font-semibold transition ${
+                    reportSubTab === 'balance'
+                      ? 'bg-yellow-200 text-black rounded'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700 rounded'
+                  }`}
+                >
+                  Cân đối kế toán
+                </button>
+                <button
+                  onClick={() => setReportSubTab('income')}
+                  className={`px-4 py-2 text-sm font-semibold transition ${
+                    reportSubTab === 'income'
+                      ? 'bg-yellow-200 text-black rounded'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700 rounded'
+                  }`}
+                >
+                  Kết quả kinh doanh
+                </button>
+              </div>
+            )}
           </div>
 
           {/* TAB CONTENT */}
-          {activeTab === 'data' && dataSubTab === 'report' && (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-900 border-b border-slate-700 text-slate-500 text-[12px]">
-                    <th className="py-4 px-6 text-left sticky left-0 bg-slate-900 z-20 min-w-[350px]">
-                      CHỈ TIÊU
-                    </th>
-                    {headers.map((date) => (
-                      <th key={date} className="py-3 px-4 text-right">
-                        Q{Math.ceil((new Date(date).getMonth() + 1) / 3)} <br />
-                        <span className="text-[10px] opacity-50">
-                          {new Date(date).getFullYear()}
-                        </span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>{tree.map((node) => renderRow(node))}</tbody>
-              </table>
-            </div>
-          )}
+          {activeTab === 'data' &&
+            dataSubTab === 'report' &&
+            reportSubTab === 'balance' && (
+              <FinancialReport
+                tree={tree}
+                headers={headers}
+                expanded={expanded}
+                setExpanded={setExpanded}
+              />
+            )}
+
+          {activeTab === 'data' &&
+            dataSubTab === 'report' &&
+            reportSubTab === 'income' && (
+              <FinancialReport
+                tree={incomeTree}
+                headers={incomeHeaders}
+                expanded={incomeExpanded}
+                setExpanded={setIncomeExpanded}
+              />
+            )}
 
           {activeTab === 'data' && dataSubTab === 'statistics' && (
             <GeneralStatistics data={statisticsData} />
