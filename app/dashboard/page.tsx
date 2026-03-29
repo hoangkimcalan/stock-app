@@ -54,6 +54,26 @@ function DashboardContent() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Reset all data when stockCode changes
+  useEffect(() => {
+    setData(null);
+    setIncomeData(null);
+    setCashFlowData(null);
+    setStatisticsData(null);
+    setTree([]);
+    setIncomeTree([]);
+    setCashFlowTree([]);
+    setHeaders([]);
+    setIncomeHeaders([]);
+    setCashFlowHeaders([]);
+    setExpanded({});
+    setIncomeExpanded({});
+    setCashFlowExpanded({});
+    setActiveTab('data');
+    setDataSubTab('statistics');
+    setReportSubTab('balance');
+  }, [stockCode]);
+
   // Fetch Balance Sheet
   useEffect(() => {
     setLoading(true);
