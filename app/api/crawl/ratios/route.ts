@@ -1,14 +1,10 @@
 import { connectDB } from '@/lib/mongodb';
-import CashFlowStatement from '@/models/CashFlowStatement';
-import FinanceStatement from '@/models/FinanceStatement';
-import IncomeStatement from '@/models/IncomeStatement';
-import Statistics from '@/models/Statistics';
 import {
-  crawlCashFlowStatement,
-  crawlFinance,
-  crawlIncomeStatement,
-  crawlStatistics,
-} from '@/services/finance.crawler';
+  calculateAndSaveAllSectorAverages,
+  calculateYearlyRatios,
+  saveFinancialRatios,
+} from '@/services/finance.service';
+import { NextResponse } from 'next/server';
 
 const STOCKS = [
   'VIC',
@@ -206,86 +202,84 @@ export async function GET() {
   await connectDB();
 
   const results = [];
+  const currentYear = new Date().getFullYear();
+  let processed = 0;
+  let failed = 0;
 
   for (const code of STOCKS) {
     try {
-      //Crawl Finance
-      const financeData = await crawlFinance(code);
+      const allRatios = [];
 
-      const financeParsed = {
-        code: financeData.code,
-        name: financeData.name,
-        type: 89,
-        period: 1,
-        year: 2025,
-        items: financeData.items.map((item) => ({
-          itemCode: item.itemCode,
-          itemName: item.itemName,
-          displayLevel: item.displayLevel,
-          data: item.data,
-        })),
-      };
+      // Tính 7 năm gần nhất
+      for (let year = currentYear - 8; year <= currentYear; year++) {
+        const ratios = await calculateYearlyRatios(code, year);
+        if (Object.keys(ratios).length > 1) {
+          // Check if có tính được chỉ số
+          allRatios.push(ratios);
+        }
+      }
 
-      await FinanceStatement.findOneAndUpdate(
-        { code: financeParsed.code, year: financeParsed.year },
-        financeParsed,
-        { upsert: true, new: true }
-      );
-
-      //Crawl Income Statement
-      const incomeData = await crawlIncomeStatement(code);
-
-      await IncomeStatement.findOneAndUpdate(
-        {
-          code: incomeData.code,
-          year: incomeData.year,
-          periodNum: incomeData.periodNum,
-        },
-        incomeData,
-        { upsert: true, new: true }
-      );
-
-      // Crawl Cash Flow Statement
-      const cashFlowData = await crawlCashFlowStatement(code);
-
-      await CashFlowStatement.findOneAndUpdate(
-        {
-          code: cashFlowData.code,
-          year: cashFlowData.year,
-          periodNum: cashFlowData.periodNum,
-        },
-        cashFlowData,
-        { upsert: true, new: true }
-      );
-
-      //Crawl Statistics
-      const statisticsData = await crawlStatistics(code);
-
-      await Statistics.findOneAndUpdate(
-        { code: statisticsData.code },
-        statisticsData,
-        { upsert: true, new: true }
-      );
-
-      results.push({
-        code,
-        status: 'ok',
-        finance: 'saved',
-        income: 'saved',
-        cashflow: 'saved',
-        statistics: 'saved',
-      });
+      // Lưu vào DB
+      if (allRatios.length > 0) {
+        const saved = await saveFinancialRatios(code, allRatios);
+        if (saved) {
+          results.push({
+            code,
+            status: 'ok',
+            message: `Calculated ${allRatios.length} yearly ratios`,
+          });
+          processed++;
+        } else {
+          results.push({
+            code,
+            status: 'error',
+            message: 'Failed to save ratios',
+          });
+          failed++;
+        }
+      } else {
+        results.push({
+          code,
+          status: 'warning',
+          message: 'No ratios calculated (missing data)',
+        });
+        failed++;
+      }
     } catch (err) {
       results.push({
         code,
         status: 'error',
         message: err instanceof Error ? err.message : 'Unknown error',
       });
+      failed++;
     }
   }
 
-  return Response.json({
+  // Tính sector averages sau khi xong tất cả
+  try {
+    console.log('Calculating sector averages...');
+    await calculateAndSaveAllSectorAverages();
+    results.push({
+      code: 'SECTOR_AVERAGES',
+      status: 'ok',
+      message: 'All sector averages calculated',
+    });
+  } catch (err) {
+    results.push({
+      code: 'SECTOR_AVERAGES',
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Unknown error',
+    });
+  }
+
+  return NextResponse.json({
     success: true,
+    summary: {
+      total: STOCKS.length,
+      processed,
+      failed,
+      totalStocks: [...new Set(STOCKS)].length, // Loại bỏ duplicates
+    },
     results,
   });
 }

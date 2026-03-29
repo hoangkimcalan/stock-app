@@ -3,8 +3,12 @@
 'use client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
+import { AdvancedRatios } from './components/AdvancedRatios';
+import { DetailedCharts } from './components/DetailedCharts';
 import { FinancialReport } from './components/FinancialReport';
 import { GeneralStatistics } from './components/GeneralStatistics';
+
+type TabType = 'data' | 'chart' | 'ratios';
 
 function DashboardContent() {
   const [data, setData] = useState<any>(null);
@@ -15,20 +19,24 @@ function DashboardContent() {
   const [incomeTree, setIncomeTree] = useState<any[]>([]);
   const [cashFlowTree, setCashFlowTree] = useState<any[]>([]);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
-  const [incomeExpanded, setIncomeExpanded] = useState<Record<number, boolean>>({});
-  const [cashFlowExpanded, setCashFlowExpanded] = useState<Record<number, boolean>>({});
+  const [incomeExpanded, setIncomeExpanded] = useState<Record<number, boolean>>(
+    {}
+  );
+  const [cashFlowExpanded, setCashFlowExpanded] = useState<
+    Record<number, boolean>
+  >({});
   const [headers, setHeaders] = useState<string[]>([]);
   const [incomeHeaders, setIncomeHeaders] = useState<string[]>([]);
   const [cashFlowHeaders, setCashFlowHeaders] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState('');
-  const [activeTab, setActiveTab] = useState<'data' | 'chart'>('data');
+  const [activeTab, setActiveTab] = useState<TabType>('data');
   const [dataSubTab, setDataSubTab] = useState<'report' | 'statistics'>(
     'statistics'
   );
-  const [reportSubTab, setReportSubTab] = useState<'balance' | 'income' | 'cashflow'>(
-    'balance'
-  );
+  const [reportSubTab, setReportSubTab] = useState<
+    'balance' | 'income' | 'cashflow'
+  >('balance');
   const searchParams = useSearchParams();
   const router = useRouter();
   const stockCode = searchParams.get('code') || 'GMD';
@@ -149,7 +157,9 @@ function DashboardContent() {
           }
           setCashFlowExpanded({});
         })
-        .catch((err) => console.error('Error fetching cash flow statement:', err));
+        .catch((err) =>
+          console.error('Error fetching cash flow statement:', err)
+        );
     }
   }, [stockCode, activeTab, dataSubTab, reportSubTab]);
 
@@ -228,6 +238,16 @@ function DashboardContent() {
                 Dữ liệu tài chính
               </button>
               <button
+                onClick={() => setActiveTab('ratios')}
+                className={`px-4 py-3 font-semibold transition ${
+                  activeTab === 'ratios'
+                    ? 'border-b-2 border-yellow-500 text-yellow-500'
+                    : 'text-slate-400 hover:text-slate-300'
+                }`}
+              >
+                Chỉ số nâng cao
+              </button>
+              <button
                 onClick={() => setActiveTab('chart')}
                 className={`px-4 py-3 font-semibold transition ${
                   activeTab === 'chart'
@@ -235,7 +255,7 @@ function DashboardContent() {
                     : 'text-slate-400 hover:text-slate-300'
                 }`}
               >
-                Biểu đồ tài chính
+                Biểu đồ chi tiết
               </button>
             </div>
 
@@ -341,12 +361,17 @@ function DashboardContent() {
           )}
 
           {activeTab === 'chart' && (
-            <div className="p-6 flex items-center justify-center min-h-[400px]">
-              <div className="text-slate-400 text-center">
-                <p className="text-lg">Biểu đồ tài chính</p>
-                <p className="text-sm opacity-50">Sắp có cập nhật</p>
-              </div>
-            </div>
+            <DetailedCharts
+              code={stockCode}
+              sectorName={statisticsData?.sectorName}
+            />
+          )}
+
+          {activeTab === 'ratios' && (
+            <AdvancedRatios
+              code={stockCode}
+              sectorName={statisticsData?.sectorName}
+            />
           )}
         </div>
       </div>
