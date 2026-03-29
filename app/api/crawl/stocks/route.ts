@@ -1,25 +1,31 @@
 import { connectDB } from '@/lib/mongodb';
+import CashFlowStatement from '@/models/CashFlowStatement';
 import FinanceStatement from '@/models/FinanceStatement';
 import IncomeStatement from '@/models/IncomeStatement';
 import Statistics from '@/models/Statistics';
-import {
-  crawlFinance,
-  crawlIncomeStatement,
-  crawlStatistics,
-} from '@/services/finance.crawler';
+import { crawlCashFlowStatement, crawlFinance, crawlIncomeStatement, crawlStatistics } from '@/services/finance.crawler';
 
 const STOCKS = [
-  'FIR',
-  'TAL',
-  'TIX',
-  'VRC',
-  'QNP',
-  'BCE',
-  'CCC',
-  'RYG',
-  'TCD',
-  'TSA',
-
+  'VIC',
+  'VHM',
+  'VNM',
+  'HPG',
+  'MSN',
+  'VJC',
+  'NVL',
+  'KDH',
+  'DXG',
+  'PDR',
+  'BCM',
+  'HSG',
+  'NKG',
+  'GAS',
+  'PLX',
+  'MWG',
+  'FPT',
+  'SAB',
+  'DGW',
+  'GMD',
 ];
 
 export async function GET() {
@@ -29,7 +35,7 @@ export async function GET() {
 
   for (const code of STOCKS) {
     try {
-      // Crawl Finance
+      //Crawl Finance
       const financeData = await crawlFinance(code);
 
       const financeParsed = {
@@ -52,7 +58,7 @@ export async function GET() {
         { upsert: true, new: true }
       );
 
-      // Crawl Income Statement
+      //Crawl Income Statement
       const incomeData = await crawlIncomeStatement(code);
 
       await IncomeStatement.findOneAndUpdate(
@@ -65,7 +71,20 @@ export async function GET() {
         { upsert: true, new: true }
       );
 
-      // Crawl Statistics
+      // Crawl Cash Flow Statement
+      const cashFlowData = await crawlCashFlowStatement(code);
+
+      await CashFlowStatement.findOneAndUpdate(
+        {
+          code: cashFlowData.code,
+          year: cashFlowData.year,
+          periodNum: cashFlowData.periodNum,
+        },
+        cashFlowData,
+        { upsert: true, new: true }
+      );
+
+      //Crawl Statistics
       const statisticsData = await crawlStatistics(code);
 
       await Statistics.findOneAndUpdate(
@@ -79,6 +98,7 @@ export async function GET() {
         status: 'ok',
         finance: 'saved',
         income: 'saved',
+        cashflow: 'saved',
         statistics: 'saved',
       });
     } catch (err) {

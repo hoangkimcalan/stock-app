@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { CrawlFinanceResult } from '@/types/finance';
 import {
+  getCashFlowStatementFromAPI,
   getFinanceFromAPI,
   getIncomeStatementFromAPI,
   getStatisticsFromAPI,
@@ -18,6 +19,21 @@ export async function crawlFinance(code: string): Promise<CrawlFinanceResult> {
 
 export async function crawlIncomeStatement(code: string) {
   const data = await getIncomeStatementFromAPI(code);
+
+  return {
+    code: data.code,
+    name: data.name,
+    type: data.type,
+    period: data.period,
+    year: data.year,
+    periodNum: data.periodNum,
+    label: data.label || [],
+    rawItems: data.data || [],
+    tree: data.tree || [],
+  };
+}
+export async function crawlCashFlowStatement(code: string) {
+  const data = await getCashFlowStatementFromAPI(code);
 
   return {
     code: data.code,

@@ -9,22 +9,24 @@ import { GeneralStatistics } from './components/GeneralStatistics';
 function DashboardContent() {
   const [data, setData] = useState<any>(null);
   const [incomeData, setIncomeData] = useState<any>(null);
+  const [cashFlowData, setCashFlowData] = useState<any>(null);
   const [statisticsData, setStatisticsData] = useState<any>(null);
   const [tree, setTree] = useState<any[]>([]);
   const [incomeTree, setIncomeTree] = useState<any[]>([]);
+  const [cashFlowTree, setCashFlowTree] = useState<any[]>([]);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
-  const [incomeExpanded, setIncomeExpanded] = useState<Record<number, boolean>>(
-    {}
-  );
+  const [incomeExpanded, setIncomeExpanded] = useState<Record<number, boolean>>({});
+  const [cashFlowExpanded, setCashFlowExpanded] = useState<Record<number, boolean>>({});
   const [headers, setHeaders] = useState<string[]>([]);
   const [incomeHeaders, setIncomeHeaders] = useState<string[]>([]);
+  const [cashFlowHeaders, setCashFlowHeaders] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState('');
   const [activeTab, setActiveTab] = useState<'data' | 'chart'>('data');
   const [dataSubTab, setDataSubTab] = useState<'report' | 'statistics'>(
     'statistics'
   );
-  const [reportSubTab, setReportSubTab] = useState<'balance' | 'income'>(
+  const [reportSubTab, setReportSubTab] = useState<'balance' | 'income' | 'cashflow'>(
     'balance'
   );
   const searchParams = useSearchParams();
@@ -89,7 +91,6 @@ function DashboardContent() {
         .then((res) => res.json())
         .then((resData) => {
           setIncomeData(resData || []);
-          // Lấy tree từ rawItems nếu có, nếu không lấy rawItems
           const treeData =
             resData.tree && resData.tree.length > 0
               ? resData.tree
@@ -110,6 +111,45 @@ function DashboardContent() {
           setIncomeExpanded({});
         })
         .catch((err) => console.error('Error fetching income statement:', err));
+    }
+  }, [stockCode, activeTab, dataSubTab, reportSubTab]);
+
+  // Fetch Cash Flow Statement
+  useEffect(() => {
+    if (
+      activeTab === 'data' &&
+      dataSubTab === 'report' &&
+      reportSubTab === 'cashflow'
+    ) {
+      fetch(`/api/stocks/${stockCode}/cashflow`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+      })
+        .then((res) => res.json())
+        .then((resData) => {
+          setCashFlowData(resData || []);
+          const treeData =
+            resData.tree && resData.tree.length > 0
+              ? resData.tree
+              : resData.rawItems || [];
+          setCashFlowTree(treeData);
+
+          const items = resData.rawItems || [];
+          if (items.length > 0) {
+            const longestDataRow = items.reduce((prev: any, current: any) =>
+              prev.data?.length > current.data?.length ? prev : current
+            );
+            if (longestDataRow && longestDataRow.data) {
+              setCashFlowHeaders(
+                longestDataRow.data.map((d: any) => d.fiscalDate)
+              );
+            }
+          }
+          setCashFlowExpanded({});
+        })
+        .catch((err) => console.error('Error fetching cash flow statement:', err));
     }
   }, [stockCode, activeTab, dataSubTab, reportSubTab]);
 
@@ -248,6 +288,16 @@ function DashboardContent() {
                 >
                   Kết quả kinh doanh
                 </button>
+                <button
+                  onClick={() => setReportSubTab('cashflow')}
+                  className={`px-4 py-2 text-sm font-semibold transition ${
+                    reportSubTab === 'cashflow'
+                      ? 'bg-yellow-200 text-black rounded'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700 rounded'
+                  }`}
+                >
+                  Lưu chuyển tiền tệ
+                </button>
               </div>
             )}
           </div>
@@ -272,6 +322,17 @@ function DashboardContent() {
                 headers={incomeHeaders}
                 expanded={incomeExpanded}
                 setExpanded={setIncomeExpanded}
+              />
+            )}
+
+          {activeTab === 'data' &&
+            dataSubTab === 'report' &&
+            reportSubTab === 'cashflow' && (
+              <FinancialReport
+                tree={cashFlowTree}
+                headers={cashFlowHeaders}
+                expanded={cashFlowExpanded}
+                setExpanded={setCashFlowExpanded}
               />
             )}
 
