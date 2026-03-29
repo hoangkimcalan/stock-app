@@ -1,8 +1,8 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
+import { useStockData } from '@/hooks/useStockData';
 import { useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { AdvancedRatios } from './components/AdvancedRatios';
 import { DetailedCharts } from './components/DetailedCharts';
 import { FinancialReport } from './components/FinancialReport';
@@ -11,24 +11,6 @@ import { GeneralStatistics } from './components/GeneralStatistics';
 type TabType = 'data' | 'chart' | 'ratios';
 
 function DashboardContent() {
-  const [data, setData] = useState<any>(null);
-  const [incomeData, setIncomeData] = useState<any>(null);
-  const [cashFlowData, setCashFlowData] = useState<any>(null);
-  const [statisticsData, setStatisticsData] = useState<any>(null);
-  const [tree, setTree] = useState<any[]>([]);
-  const [incomeTree, setIncomeTree] = useState<any[]>([]);
-  const [cashFlowTree, setCashFlowTree] = useState<any[]>([]);
-  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
-  const [incomeExpanded, setIncomeExpanded] = useState<Record<number, boolean>>(
-    {}
-  );
-  const [cashFlowExpanded, setCashFlowExpanded] = useState<
-    Record<number, boolean>
-  >({});
-  const [headers, setHeaders] = useState<string[]>([]);
-  const [incomeHeaders, setIncomeHeaders] = useState<string[]>([]);
-  const [cashFlowHeaders, setCashFlowHeaders] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('data');
   const [dataSubTab, setDataSubTab] = useState<'report' | 'statistics'>(
@@ -37,35 +19,38 @@ function DashboardContent() {
   const [reportSubTab, setReportSubTab] = useState<
     'balance' | 'income' | 'cashflow'
   >('balance');
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const [incomeExpanded, setIncomeExpanded] = useState<Record<number, boolean>>(
+    {}
+  );
+  const [cashFlowExpanded, setCashFlowExpanded] = useState<
+    Record<number, boolean>
+  >({});
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const stockCode = searchParams.get('code') || 'GMD';
+
+  const {
+    data,
+    incomeData,
+    cashFlowData,
+    statisticsData,
+    tree,
+    incomeTree,
+    cashFlowTree,
+    headers,
+    incomeHeaders,
+    cashFlowHeaders,
+    loading,
+  } = useStockData(stockCode, activeTab, dataSubTab, reportSubTab);
 
   useEffect(() => {
     setSearchInput(stockCode);
   }, [stockCode]);
 
-  useEffect(() => {
-    const handlePopState = () => {
-      setLoading(true);
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
   // Reset all data when stockCode changes
   useEffect(() => {
-    setData(null);
-    setIncomeData(null);
-    setCashFlowData(null);
-    setStatisticsData(null);
-    setTree([]);
-    setIncomeTree([]);
-    setCashFlowTree([]);
-    setHeaders([]);
-    setIncomeHeaders([]);
-    setCashFlowHeaders([]);
     setExpanded({});
     setIncomeExpanded({});
     setCashFlowExpanded({});
@@ -74,139 +59,34 @@ function DashboardContent() {
     setReportSubTab('balance');
   }, [stockCode]);
 
-  // Fetch Balance Sheet
-  useEffect(() => {
-    setLoading(true);
-    fetch(`/api/stocks/${stockCode}`, {
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      },
-    })
-      .then((res) => res.json())
-      .then((resData) => {
-        setData(resData || []);
-        setTree(resData.tree || []);
+  const handleSearch = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      const code = searchInput.trim().toUpperCase();
+      if (code) {
+        router.push(`/dashboard?code=${code}`);
+      }
+    },
+    [searchInput, router]
+  );
 
-        const items = resData.rawItems || [];
-        if (items.length > 0) {
-          const longestDataRow = items.reduce((prev: any, current: any) =>
-            prev.data?.length > current.data?.length ? prev : current
-          );
-          if (longestDataRow && longestDataRow.data) {
-            setHeaders(longestDataRow.data.map((d: any) => d.fiscalDate));
-          }
-        }
-        setExpanded({});
-      })
-      .catch((err) => console.error('Error fetching balance sheet:', err))
-      .finally(() => setLoading(false));
-  }, [stockCode]);
+  const handleTabChange = useCallback((tab: TabType) => {
+    setActiveTab(tab);
+  }, []);
 
-  // Fetch Income Statement
-  useEffect(() => {
-    if (
-      activeTab === 'data' &&
-      dataSubTab === 'report' &&
-      reportSubTab === 'income'
-    ) {
-      fetch(`/api/stocks/${stockCode}/finance`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-        },
-      })
-        .then((res) => res.json())
-        .then((resData) => {
-          setIncomeData(resData || []);
-          const treeData =
-            resData.tree && resData.tree.length > 0
-              ? resData.tree
-              : resData.rawItems || [];
-          setIncomeTree(treeData);
+  const handleDataSubTabChange = useCallback(
+    (subTab: 'report' | 'statistics') => {
+      setDataSubTab(subTab);
+    },
+    []
+  );
 
-          const items = resData.rawItems || [];
-          if (items.length > 0) {
-            const longestDataRow = items.reduce((prev: any, current: any) =>
-              prev.data?.length > current.data?.length ? prev : current
-            );
-            if (longestDataRow && longestDataRow.data) {
-              setIncomeHeaders(
-                longestDataRow.data.map((d: any) => d.fiscalDate)
-              );
-            }
-          }
-          setIncomeExpanded({});
-        })
-        .catch((err) => console.error('Error fetching income statement:', err));
-    }
-  }, [stockCode, activeTab, dataSubTab, reportSubTab]);
-
-  // Fetch Cash Flow Statement
-  useEffect(() => {
-    if (
-      activeTab === 'data' &&
-      dataSubTab === 'report' &&
-      reportSubTab === 'cashflow'
-    ) {
-      fetch(`/api/stocks/${stockCode}/cashflow`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-        },
-      })
-        .then((res) => res.json())
-        .then((resData) => {
-          setCashFlowData(resData || []);
-          const treeData =
-            resData.tree && resData.tree.length > 0
-              ? resData.tree
-              : resData.rawItems || [];
-          setCashFlowTree(treeData);
-
-          const items = resData.rawItems || [];
-          if (items.length > 0) {
-            const longestDataRow = items.reduce((prev: any, current: any) =>
-              prev.data?.length > current.data?.length ? prev : current
-            );
-            if (longestDataRow && longestDataRow.data) {
-              setCashFlowHeaders(
-                longestDataRow.data.map((d: any) => d.fiscalDate)
-              );
-            }
-          }
-          setCashFlowExpanded({});
-        })
-        .catch((err) =>
-          console.error('Error fetching cash flow statement:', err)
-        );
-    }
-  }, [stockCode, activeTab, dataSubTab, reportSubTab]);
-
-  // Fetch Statistics
-  useEffect(() => {
-    if (activeTab === 'data' && dataSubTab === 'statistics') {
-      fetch(`/api/stocks/${stockCode}/statistics`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-        },
-      })
-        .then((res) => res.json())
-        .then((resData) => {
-          setStatisticsData(resData || {});
-        })
-        .catch((err) => console.error('Error fetching statistics data:', err));
-    }
-  }, [stockCode, activeTab, dataSubTab]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = searchInput.trim().toUpperCase();
-    if (code) {
-      router.push(`/dashboard?code=${code}`);
-    }
-  };
+  const handleReportSubTabChange = useCallback(
+    (subTab: 'balance' | 'income' | 'cashflow') => {
+      setReportSubTab(subTab);
+    },
+    []
+  );
 
   if (loading) {
     return (
@@ -242,13 +122,13 @@ function DashboardContent() {
         <div className="border border-slate-800 rounded-xl bg-[#0f172a] overflow-hidden shadow-2xl text-slate-300">
           <div className="p-6 border-b border-slate-800">
             <h1 className="text-xl font-bold text-yellow-500 uppercase mb-4">
-              {data.name}
+              {data?.name || 'Đang tải...'}
             </h1>
 
             {/* MAIN TABS */}
             <div className="flex gap-2 border-b border-slate-700 mb-4">
               <button
-                onClick={() => setActiveTab('data')}
+                onClick={() => handleTabChange('data')}
                 className={`px-4 py-3 font-semibold transition ${
                   activeTab === 'data'
                     ? 'border-b-2 border-yellow-500 text-yellow-500'
@@ -258,7 +138,7 @@ function DashboardContent() {
                 Dữ liệu tài chính
               </button>
               <button
-                onClick={() => setActiveTab('ratios')}
+                onClick={() => handleTabChange('ratios')}
                 className={`px-4 py-3 font-semibold transition ${
                   activeTab === 'ratios'
                     ? 'border-b-2 border-yellow-500 text-yellow-500'
@@ -268,7 +148,7 @@ function DashboardContent() {
                 Chỉ số nâng cao
               </button>
               <button
-                onClick={() => setActiveTab('chart')}
+                onClick={() => handleTabChange('chart')}
                 className={`px-4 py-3 font-semibold transition ${
                   activeTab === 'chart'
                     ? 'border-b-2 border-yellow-500 text-yellow-500'
@@ -283,7 +163,7 @@ function DashboardContent() {
             {activeTab === 'data' && (
               <div className="flex gap-2">
                 <button
-                  onClick={() => setDataSubTab('statistics')}
+                  onClick={() => handleDataSubTabChange('statistics')}
                   className={`px-4 py-2 text-sm font-semibold transition ${
                     dataSubTab === 'statistics'
                       ? 'bg-yellow-500 text-black rounded'
@@ -293,7 +173,7 @@ function DashboardContent() {
                   Thống kê chung
                 </button>
                 <button
-                  onClick={() => setDataSubTab('report')}
+                  onClick={() => handleDataSubTabChange('report')}
                   className={`px-4 py-2 text-sm font-semibold transition ${
                     dataSubTab === 'report'
                       ? 'bg-yellow-500 text-black rounded'
@@ -309,7 +189,7 @@ function DashboardContent() {
             {activeTab === 'data' && dataSubTab === 'report' && (
               <div className="flex gap-2 mt-4">
                 <button
-                  onClick={() => setReportSubTab('balance')}
+                  onClick={() => handleReportSubTabChange('balance')}
                   className={`px-4 py-2 text-sm font-semibold transition ${
                     reportSubTab === 'balance'
                       ? 'bg-yellow-200 text-black rounded'
@@ -319,7 +199,7 @@ function DashboardContent() {
                   Cân đối kế toán
                 </button>
                 <button
-                  onClick={() => setReportSubTab('income')}
+                  onClick={() => handleReportSubTabChange('income')}
                   className={`px-4 py-2 text-sm font-semibold transition ${
                     reportSubTab === 'income'
                       ? 'bg-yellow-200 text-black rounded'
@@ -329,7 +209,7 @@ function DashboardContent() {
                   Kết quả kinh doanh
                 </button>
                 <button
-                  onClick={() => setReportSubTab('cashflow')}
+                  onClick={() => handleReportSubTabChange('cashflow')}
                   className={`px-4 py-2 text-sm font-semibold transition ${
                     reportSubTab === 'cashflow'
                       ? 'bg-yellow-200 text-black rounded'
