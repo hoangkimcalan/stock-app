@@ -2,7 +2,7 @@
 'use client';
 import { useStockData } from '@/hooks/useStockData';
 import { useRouter, useSearchParams } from 'next/navigation';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdvancedRatios } from './components/AdvancedRatios';
 import { DetailedCharts } from './components/DetailedCharts';
 import { FinancialReport } from './components/FinancialReport';
@@ -10,8 +10,187 @@ import { GeneralStatistics } from './components/GeneralStatistics';
 
 type TabType = 'data' | 'chart' | 'ratios';
 
+const STOCKS = [
+  'VIC',
+  'VHM',
+  'VNM',
+  'HPG',
+  'MSN',
+  'VJC',
+  'NVL',
+  'KDH',
+  'DXG',
+  'PDR',
+  'BCM',
+  'HSG',
+  'NKG',
+  'GAS',
+  'PLX',
+  'MWG',
+  'FPT',
+  'SAB',
+  'DGW',
+  'GMD',
+  'AST',
+  'BTT',
+  'CMV',
+  'COM',
+  'FRT',
+  'PET',
+  'PIT',
+  'SBV',
+  'SVT',
+  'AGG',
+  'CCL',
+  'CKG',
+  'CRE',
+  'CRV',
+  'D2D',
+  'DIG',
+  'DRH',
+  'DTA',
+  'DXS',
+  'FDC',
+  'FIR',
+  'HAR',
+  'HDC',
+  'HDG',
+  'HPX',
+  'HQC',
+  'HTN',
+  'IJC',
+  'ITC',
+  'KBC',
+  'KHG',
+  'KOS',
+  'LDG',
+  'LGL',
+  'LHG',
+  'NBB',
+  'NLG',
+  'NTC',
+  'NTL',
+  'NVT',
+  'PTL',
+  'QCG',
+  'SCR',
+  'SGR',
+  'SIP',
+  'SJS',
+  'SZC',
+  'SZL',
+  'TAL',
+  'TCH',
+  'TDC',
+  'TDH',
+  'TEG',
+  'TIP',
+  'TIX',
+  'TN1',
+  'VPH',
+  'VPI',
+  'VRC',
+  'VRE',
+  'DTL',
+  'HMC',
+  'SHA',
+  'SHI',
+  'SMC',
+  'TLH',
+  'TNI',
+  'VCA',
+  'CMG',
+  'ICT',
+  'ITD',
+  'SGT',
+  'ASG',
+  'CLL',
+  'DVP',
+  'GSP',
+  'HAH',
+  'HTV',
+  'ILB',
+  'MHC',
+  'NCT',
+  'PDN',
+  'PDV',
+  'PJT',
+  'PVP',
+  'PVT',
+  'QNP',
+  'SFI',
+  'SGN',
+  'STG',
+  'TCL',
+  'TMS',
+  'VIP',
+  'VNL',
+  'VOS',
+  'VSC',
+  'VTO',
+  'VTP',
+  'ACC',
+  'ADP',
+  'BCE',
+  'BMP',
+  'C32',
+  'C47',
+  'CCC',
+  'CDC',
+  'CIG',
+  'CII',
+  'CRC',
+  'CTD',
+  'CTI',
+  'CTR',
+  'CVT',
+  'DC4',
+  'DHA',
+  'DLG',
+  'DPG',
+  'DXV',
+  'EVG',
+  'FCM',
+  'FCN',
+  'GEL',
+  'GMH',
+  'HAS',
+  'HHV',
+  'HID',
+  'HT1',
+  'HTI',
+  'HU1',
+  'HUB',
+  'HVH',
+  'KSB',
+  'LBM',
+  'LCG',
+  'LGC',
+  'LM8',
+  'MDG',
+  'NAV',
+  'NHA',
+  'NNC',
+  'PC1',
+  'PHC',
+  'PTC',
+  'RYG',
+  'SC5',
+  'TCD',
+  'TCR',
+  'THG',
+  'TLD',
+  'TNT',
+  'TSA',
+  'VCG',
+  'VGC',
+  'VNE',
+  'VSI',
+];
+
 function DashboardContent() {
   const [searchInput, setSearchInput] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('data');
   const [dataSubTab, setDataSubTab] = useState<'report' | 'statistics'>(
     'statistics'
@@ -45,6 +224,13 @@ function DashboardContent() {
     loading,
   } = useStockData(stockCode, activeTab, dataSubTab, reportSubTab);
 
+  // Filter suggestions based on input
+  const suggestions = useMemo(() => {
+    if (!searchInput.trim()) return [];
+    const input = searchInput.trim().toUpperCase();
+    return STOCKS.filter((stock) => stock.startsWith(input)).slice(0, 10);
+  }, [searchInput]);
+
   useEffect(() => {
     setSearchInput(stockCode);
   }, [stockCode]);
@@ -65,10 +251,24 @@ function DashboardContent() {
       const code = searchInput.trim().toUpperCase();
       if (code) {
         router.push(`/dashboard?code=${code}`);
+        setShowSuggestions(false);
       }
     },
     [searchInput, router]
   );
+
+  const handleSuggestionClick = useCallback(
+    (stock: string) => {
+      router.push(`/dashboard?code=${stock}`);
+      setShowSuggestions(false);
+    },
+    [router]
+  );
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchInput(e.target.value);
+    setShowSuggestions(true);
+  };
 
   const handleTabChange = useCallback((tab: TabType) => {
     setActiveTab(tab);
@@ -100,15 +300,34 @@ function DashboardContent() {
     <div className="min-h-screen bg-[#020617] p-8">
       <div className="max-w-[1400px] mx-auto">
         {/* SEARCH BAR */}
-        <form onSubmit={handleSearch} className="mb-6">
+        <form onSubmit={handleSearch} className="mb-6 relative">
           <div className="flex gap-2">
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Nhập mã cổ phiếu (VD: GMD, VNM, BID)..."
-              className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-yellow-500"
-            />
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={searchInput}
+                onChange={handleInputChange}
+                onFocus={() => setShowSuggestions(true)}
+                placeholder="Nhập mã cổ phiếu (VD: GMD, VNM, BID)..."
+                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-yellow-500"
+              />
+
+              {/* Suggestions Dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-10">
+                  {suggestions.map((stock) => (
+                    <button
+                      key={stock}
+                      onClick={() => handleSuggestionClick(stock)}
+                      className="w-full px-4 py-2 text-left text-white hover:bg-slate-700 transition first:rounded-t-lg last:rounded-b-lg"
+                    >
+                      {stock}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button
               type="submit"
               className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-black font-bold rounded-lg transition"
