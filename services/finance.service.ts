@@ -127,6 +127,9 @@ export async function calculateYearlyRatios(code: string, year: number) {
       'income'
     );
 
+    // Lưu netRevenue để dùng làm trọng số (Ri)
+    ratios.netRevenue = netRevenue;
+
     // 1. Tax Burden = Lợi nhuận sau thuế / Lợi nhuận trước thuế
     if (
       profitAfterTax !== null &&
@@ -291,7 +294,82 @@ export async function calculateYearlyRatios(code: string, year: number) {
   }
 }
 
-export async function saveFinancialRatios(code: string, ratios: any[]) {
+interface ScoreBreakdown {
+  roe?: string;
+  debtToEquity?: string;
+  currentRatio?: string;
+  qualityRatio?: string;
+}
+
+// Tính điểm theo bảng tiêu chí
+function calculateScore(
+  ratios: any,
+  benchmarkRatios: any
+): { score: number; scoreBreakdown: ScoreBreakdown } {
+  const scoreBreakdown: ScoreBreakdown = {};
+  let totalScore = 0;
+
+  // ROE >= benchmark ngành: +1 điểm
+  if (ratios.roe !== undefined && benchmarkRatios.roe !== undefined) {
+    if (ratios.roe >= benchmarkRatios.roe) {
+      scoreBreakdown.roe = `+1 (ROE ${(ratios.roe * 100).toFixed(2)}% >= benchmark ${(benchmarkRatios.roe * 100).toFixed(2)}%)`;
+      totalScore += 1;
+    } else {
+      scoreBreakdown.roe = `-1 (ROE ${(ratios.roe * 100).toFixed(2)}% < benchmark ${(benchmarkRatios.roe * 100).toFixed(2)}%)`;
+      totalScore -= 1;
+    }
+  }
+
+  // D/E <= benchmark ngành: +1 điểm (càng thấp càng tốt)
+  if (
+    ratios.debtToEquity !== undefined &&
+    benchmarkRatios.debtToEquity !== undefined
+  ) {
+    if (ratios.debtToEquity <= benchmarkRatios.debtToEquity) {
+      scoreBreakdown.debtToEquity = `+1 (D/E ${ratios.debtToEquity.toFixed(2)} <= benchmark ${benchmarkRatios.debtToEquity.toFixed(2)})`;
+      totalScore += 1;
+    } else {
+      scoreBreakdown.debtToEquity = `-1 (D/E ${ratios.debtToEquity.toFixed(2)} > benchmark ${benchmarkRatios.debtToEquity.toFixed(2)})`;
+      totalScore -= 1;
+    }
+  }
+
+  // Current Ratio >= benchmark ngành: +1 điểm
+  if (
+    ratios.currentRatio !== undefined &&
+    benchmarkRatios.currentRatio !== undefined
+  ) {
+    if (ratios.currentRatio >= benchmarkRatios.currentRatio) {
+      scoreBreakdown.currentRatio = `+1 (Current ${ratios.currentRatio.toFixed(2)} >= benchmark ${benchmarkRatios.currentRatio.toFixed(2)})`;
+      totalScore += 1;
+    } else {
+      scoreBreakdown.currentRatio = `-1 (Current ${ratios.currentRatio.toFixed(2)} < benchmark ${benchmarkRatios.currentRatio.toFixed(2)})`;
+      totalScore -= 1;
+    }
+  }
+
+  // Quality Ratio >= 1: +1 điểm
+  if (ratios.qualityRatio !== undefined) {
+    if (ratios.qualityRatio >= 1) {
+      scoreBreakdown.qualityRatio = `+1 (Quality ${ratios.qualityRatio.toFixed(2)} >= 1)`;
+      totalScore += 1;
+    } else {
+      scoreBreakdown.qualityRatio = `-1 (Quality ${ratios.qualityRatio.toFixed(2)} < 1 - lỗi ảo)`;
+      totalScore -= 1;
+    }
+  }
+
+  return {
+    score: totalScore,
+    scoreBreakdown,
+  };
+}
+
+export async function saveFinancialRatios(
+  code: string,
+  ratios: any[],
+  sectorName?: string
+) {
   try {
     const stock = await Statistics.findOne({ code });
     if (!stock) {
@@ -299,14 +377,49 @@ export async function saveFinancialRatios(code: string, ratios: any[]) {
       return false;
     }
 
+    const finalSectorName = sectorName || stock.sectorName;
+
+    // Tính score cho từng ratio nếu có sectorName
+    const ratiosWithScore = await Promise.all(
+      ratios.map(async (ratio) => {
+        if (finalSectorName) {
+          // Lấy benchmark ngành
+          const sectorAverage = await SectorAverageRatios.findOne({
+            sectorName: finalSectorName,
+            'ratios.year': ratio.year,
+          });
+
+          if (sectorAverage) {
+            const benchmarkRatio = sectorAverage.ratios.find(
+              (r: any) => r.year === ratio.year
+            );
+            if (benchmarkRatio) {
+              const scoreInfo = calculateScore(ratio, benchmarkRatio);
+              return {
+                ...ratio,
+                score: scoreInfo.score,
+                scoreBreakdown: scoreInfo.scoreBreakdown,
+              };
+            }
+          }
+        }
+
+        return {
+          ...ratio,
+          score: 0,
+          scoreBreakdown: {},
+        };
+      })
+    );
+
     await FinancialRatios.updateOne(
       { code },
       {
         $set: {
           code,
           name: stock.name,
-          sectorName: stock.sectorName,
-          ratios,
+          sectorName: finalSectorName,
+          ratios: ratiosWithScore,
           updatedAt: new Date(),
         },
       },
@@ -322,6 +435,7 @@ export async function saveFinancialRatios(code: string, ratios: any[]) {
 }
 
 interface RatioData {
+  year: number;
   taxBurden?: number;
   interestBurden?: number;
   operatingMargin?: number;
@@ -331,14 +445,41 @@ interface RatioData {
   debtToEquity?: number;
   currentRatio?: number;
   qualityRatio?: number;
+  netRevenue?: number; // Doanh thu thuần - Ri (trọng số)
 }
 
-function calculateAverage(values: (number | undefined)[]): number | null {
-  const validValues = values.filter(
-    (v): v is number => v !== null && v !== undefined && !isNaN(v)
-  );
-  if (validValues.length === 0) return null;
-  return validValues.reduce((a, b) => a + b, 0) / validValues.length;
+// Tính weighted average theo công thức: Σ(Xi × Ri) / ΣRi
+// Xi = chỉ số tài chính, Ri = doanh thu thuần (netRevenue)
+function calculateWeightedAverage(
+  values: (number | undefined)[],
+  weights: (number | undefined)[]
+): number | null {
+  if (values.length !== weights.length) return null;
+
+  let totalWeightedValue = 0;
+  let totalWeight = 0;
+
+  for (let i = 0; i < values.length; i++) {
+    const value = values[i];
+    const weight = weights[i];
+
+    // Chỉ tính những values và weights hợp lệ (không null, không undefined, không NaN, weight > 0)
+    if (
+      value !== null &&
+      value !== undefined &&
+      !isNaN(value) &&
+      weight !== null &&
+      weight !== undefined &&
+      !isNaN(weight) &&
+      weight > 0
+    ) {
+      totalWeightedValue += value * weight;
+      totalWeight += weight;
+    }
+  }
+
+  if (totalWeight === 0) return null;
+  return totalWeightedValue / totalWeight;
 }
 
 export async function calculateSectorAverageRatios(sectorName: string) {
@@ -365,6 +506,7 @@ export async function calculateSectorAverageRatios(sectorName: string) {
 
     // Group ratios by year
     const ratiosByYear: Record<number, RatioData[]> = {};
+    const revenueByYear: Record<number, (number | undefined)[]> = {};
 
     financialRatios.forEach((stock) => {
       stock.ratios.forEach((ratio: any) => {
@@ -372,9 +514,11 @@ export async function calculateSectorAverageRatios(sectorName: string) {
 
         if (!ratiosByYear[year]) {
           ratiosByYear[year] = [];
+          revenueByYear[year] = [];
         }
 
         ratiosByYear[year].push({
+          year: ratio.year,
           taxBurden: ratio.taxBurden,
           interestBurden: ratio.interestBurden,
           operatingMargin: ratio.operatingMargin,
@@ -384,28 +528,58 @@ export async function calculateSectorAverageRatios(sectorName: string) {
           debtToEquity: ratio.debtToEquity,
           currentRatio: ratio.currentRatio,
           qualityRatio: ratio.qualityRatio,
+          netRevenue: ratio.netRevenue, // Ri - trọng số
         });
+
+        // Lấy netRevenue (Doanh thu thuần) làm trọng số Ri
+        revenueByYear[year].push(ratio.netRevenue);
       });
     });
 
-    // Tính trung bình cho mỗi năm
+    // Tính weighted average cho mỗi năm theo công thức: Σ(Xi × Ri) / ΣRi
     const averageRatios = Object.entries(ratiosByYear)
       .map(([year, ratios]) => {
+        const weights = revenueByYear[parseInt(year)]; // Ri = netRevenue
+
         return {
           year: parseInt(year),
-          taxBurden: calculateAverage(ratios.map((r) => r.taxBurden)),
-          interestBurden: calculateAverage(
-            ratios.map((r) => r.interestBurden)
+          // Xi = chỉ số tài chính, Ri = netRevenue (doanh thu thuần)
+          taxBurden: calculateWeightedAverage(
+            ratios.map((r) => r.taxBurden),
+            weights
           ),
-          operatingMargin: calculateAverage(ratios.map((r) => r.operatingMargin)),
-          assetTurnover: calculateAverage(ratios.map((r) => r.assetTurnover)),
-          financialLeverage: calculateAverage(
-            ratios.map((r) => r.financialLeverage)
+          interestBurden: calculateWeightedAverage(
+            ratios.map((r) => r.interestBurden),
+            weights
           ),
-          roe: calculateAverage(ratios.map((r) => r.roe)),
-          debtToEquity: calculateAverage(ratios.map((r) => r.debtToEquity)),
-          currentRatio: calculateAverage(ratios.map((r) => r.currentRatio)),
-          qualityRatio: calculateAverage(ratios.map((r) => r.qualityRatio)),
+          operatingMargin: calculateWeightedAverage(
+            ratios.map((r) => r.operatingMargin),
+            weights
+          ),
+          assetTurnover: calculateWeightedAverage(
+            ratios.map((r) => r.assetTurnover),
+            weights
+          ),
+          financialLeverage: calculateWeightedAverage(
+            ratios.map((r) => r.financialLeverage),
+            weights
+          ),
+          roe: calculateWeightedAverage(
+            ratios.map((r) => r.roe),
+            weights
+          ),
+          debtToEquity: calculateWeightedAverage(
+            ratios.map((r) => r.debtToEquity),
+            weights
+          ),
+          currentRatio: calculateWeightedAverage(
+            ratios.map((r) => r.currentRatio),
+            weights
+          ),
+          qualityRatio: calculateWeightedAverage(
+            ratios.map((r) => r.qualityRatio),
+            weights
+          ),
           companyCount: ratios.length,
         };
       })

@@ -1,5 +1,15 @@
 import mongoose from 'mongoose';
 
+const ScoreBreakdownSchema = new mongoose.Schema(
+  {
+    roe: { type: String, default: null }, // "+1 ROE >= benchmark", "-1 ROE < benchmark", etc
+    debtToEquity: { type: String, default: null },
+    currentRatio: { type: String, default: null },
+    qualityRatio: { type: String, default: null },
+  },
+  { _id: false }
+);
+
 const YearlyRatioSchema = new mongoose.Schema(
   {
     year: Number,
@@ -17,6 +27,13 @@ const YearlyRatioSchema = new mongoose.Schema(
     debtToEquity: Number,
     currentRatio: Number,
     qualityRatio: Number,
+
+    // Weight for weighted average calculation (Ri)
+    netRevenue: Number, // Doanh thu thuần - dùng làm trọng số
+
+    // Scoring
+    score: { type: Number, default: 0 }, // Tổng điểm (có thể từ -4 đến +4)
+    scoreBreakdown: ScoreBreakdownSchema, // Chi tiết điểm từng chỉ số
   },
   { _id: false }
 );
