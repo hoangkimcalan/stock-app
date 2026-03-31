@@ -180,7 +180,7 @@ export function DetailedCharts({ code, sectorName }: DetailedChartsProps) {
     { key: 'interestBurden', label: 'Interest Burden' },
     { key: 'debtToEquity', label: 'Debt/Equity' },
     { key: 'currentRatio', label: 'Current Ratio' },
-    { key: 'score', label: 'Bảng Điểm Đánh Giá' },
+    { key: 'score', label: 'Financial Score' },
   ];
 
   if (loading) {
