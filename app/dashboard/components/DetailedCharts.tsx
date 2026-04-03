@@ -48,6 +48,7 @@ export function DetailedCharts({ code, sectorName }: DetailedChartsProps) {
       try {
         setLoading(true);
 
+        //api lấy data từ mongodb ra cho phần mã cổ phiếu đó
         const stockRes = await fetch(`/api/stocks/${code}/ratios`);
         const stockData = await stockRes.json();
         if (stockData.ratios) {
