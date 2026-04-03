@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
+
 import { useStockData } from '@/hooks/useStockData';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdvancedRatios } from './components/AdvancedRatios';
 import { DetailedCharts } from './components/DetailedCharts';
 import { FinancialReport } from './components/FinancialReport';
+import FloatingCats from './components/FloatingCats';
 import { GeneralStatistics } from './components/GeneralStatistics';
 
 type TabType = 'data' | 'chart' | 'ratios';
@@ -224,7 +226,6 @@ function DashboardContent() {
     loading,
   } = useStockData(stockCode, activeTab, dataSubTab, reportSubTab);
 
-  // Filter suggestions based on input
   const suggestions = useMemo(() => {
     if (!searchInput.trim()) return [];
     const input = searchInput.trim().toUpperCase();
@@ -235,7 +236,6 @@ function DashboardContent() {
     setSearchInput(stockCode);
   }, [stockCode]);
 
-  // Reset all data when stockCode changes
   useEffect(() => {
     setExpanded({});
     setIncomeExpanded({});
@@ -297,9 +297,10 @@ function DashboardContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#020617] p-8">
-      <div className="max-w-[1400px] mx-auto">
-        {/* SEARCH BAR */}
+    <div className="min-h-screen bg-[#020617] px-4 py-8 lg:px-24 relative overflow-x-hidden">
+      <FloatingCats />
+
+      <div className="max-w-[1400px] mx-auto relative z-10">
         <form onSubmit={handleSearch} className="mb-6 relative">
           <div className="flex gap-2">
             <div className="flex-1 relative">
@@ -312,12 +313,12 @@ function DashboardContent() {
                 className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-yellow-500"
               />
 
-              {/* Suggestions Dropdown */}
               {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-10">
+                <div className="absolute top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-20">
                   {suggestions.map((stock) => (
                     <button
                       key={stock}
+                      type="button"
                       onClick={() => handleSuggestionClick(stock)}
                       className="w-full px-4 py-2 text-left text-white hover:bg-slate-700 transition first:rounded-t-lg last:rounded-b-lg"
                     >
@@ -337,14 +338,12 @@ function DashboardContent() {
           </div>
         </form>
 
-        {/* TABLE & CHART CONTAINER */}
         <div className="border border-slate-800 rounded-xl bg-[#0f172a] overflow-hidden shadow-2xl text-slate-300">
           <div className="p-6 border-b border-slate-800">
             <h1 className="text-xl font-bold text-yellow-500 uppercase mb-4">
               {data?.name || 'Đang tải...'}
             </h1>
 
-            {/* MAIN TABS */}
             <div className="flex gap-2 border-b border-slate-700 mb-4">
               <button
                 onClick={() => handleTabChange('data')}
@@ -378,7 +377,6 @@ function DashboardContent() {
               </button>
             </div>
 
-            {/* SUB TABS */}
             {activeTab === 'data' && (
               <div className="flex gap-2">
                 <button
@@ -404,7 +402,6 @@ function DashboardContent() {
               </div>
             )}
 
-            {/* REPORT SUB TABS */}
             {activeTab === 'data' && dataSubTab === 'report' && (
               <div className="flex gap-2 mt-4">
                 <button
@@ -441,7 +438,6 @@ function DashboardContent() {
             )}
           </div>
 
-          {/* TAB CONTENT */}
           {activeTab === 'data' &&
             dataSubTab === 'report' &&
             reportSubTab === 'balance' && (
