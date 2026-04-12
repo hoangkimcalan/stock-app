@@ -7,7 +7,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdvancedRatios } from './components/AdvancedRatios';
 import { DetailedCharts } from './components/DetailedCharts';
 import { FinancialReport } from './components/FinancialReport';
-import FloatingCats from './components/FloatingCats';
 import { GeneralStatistics } from './components/GeneralStatistics';
 
 type TabType = 'data' | 'chart' | 'ratios';
@@ -298,7 +297,7 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-[#020617] px-4 py-8 lg:px-24 relative overflow-x-hidden">
-      <FloatingCats />
+      {/* <FloatingCats /> */}
 
       <div className="max-w-[1400px] mx-auto relative z-10">
         <form onSubmit={handleSearch} className="mb-6 relative">
